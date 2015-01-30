@@ -15,8 +15,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 	dockerfilters "github.com/docker/docker/pkg/parsers/filters"
 	"github.com/docker/swarm/cluster"
+	"github.com/docker/swarm/filter"
 	"github.com/docker/swarm/scheduler"
-	"github.com/docker/swarm/scheduler/filter"
 	"github.com/docker/swarm/version"
 	"github.com/gorilla/mux"
 	"github.com/samalba/dockerclient"
@@ -26,7 +26,7 @@ const APIVERSION = "1.16"
 
 type context struct {
 	cluster       *cluster.Cluster
-	scheduler     *scheduler.Scheduler
+	scheduler     scheduler.Scheduler
 	eventsHandler *eventsHandler
 	debug         bool
 	tlsConfig     *tls.Config
