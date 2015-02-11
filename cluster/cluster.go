@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"crypto/tls"
 	"errors"
 	"strings"
 	"sync"
@@ -18,19 +17,15 @@ var (
 
 type Cluster struct {
 	sync.RWMutex
-	store           *state.Store
-	TLSConfig       *tls.Config
-	eventHandlers   []EventHandler
-	nodes           map[string]*Node
-	OvercommitRatio float64
+	store         *state.Store
+	eventHandlers []EventHandler
+	nodes         map[string]*Node
 }
 
-func NewCluster(store *state.Store, tlsConfig *tls.Config, overcommitRatio float64) *Cluster {
+func NewCluster(store *state.Store) *Cluster {
 	return &Cluster{
-		TLSConfig:       tlsConfig,
-		nodes:           make(map[string]*Node),
-		store:           store,
-		OvercommitRatio: overcommitRatio,
+		nodes: make(map[string]*Node),
+		store: store,
 	}
 }
 
