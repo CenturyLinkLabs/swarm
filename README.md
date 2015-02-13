@@ -78,7 +78,7 @@ other discovery services.
 
 ## Advanced Scheduling
 
-See [filters](filter) and [strategies](strategy) to learn
+See [filters](scheduler/filter) and [strategies](scheduler/strategy) to learn
 more about advanced scheduling.
 
 ## TLS

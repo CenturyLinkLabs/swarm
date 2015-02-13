@@ -94,9 +94,9 @@ var (
 		Usage: "filter to use [constraint, affinity, health, port]",
 		Value: &flFilterValue,
 	}
-	flScheduler = cli.StringFlag{
-		Name:  "scheduler, s",
-		Usage: "scheduler to use [builtin, mesos]",
-		Value: "builtin",
+	flCluster = cli.StringFlag{
+		Name:  "cluster, c",
+		Usage: "cluster to use [swarm, mesos]",
+		Value: "swarm",
 	}
 )

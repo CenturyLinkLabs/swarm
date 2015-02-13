@@ -14,8 +14,8 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	dockerfilters "github.com/docker/docker/pkg/parsers/filters"
-	"github.com/docker/swarm/filter"
-	"github.com/docker/swarm/scheduler"
+	"github.com/docker/swarm/cluster"
+	"github.com/docker/swarm/scheduler/filter"
 	"github.com/docker/swarm/version"
 	"github.com/gorilla/mux"
 	"github.com/samalba/dockerclient"
@@ -24,7 +24,7 @@ import (
 const APIVERSION = "1.16"
 
 type context struct {
-	scheduler     scheduler.Scheduler
+	cluster       cluster.Cluster
 	eventsHandler *eventsHandler
 	debug         bool
 	tlsConfig     *tls.Config
@@ -34,7 +34,7 @@ type handler func(c *context, w http.ResponseWriter, r *http.Request)
 
 // GET /info
 func getInfo(c *context, w http.ResponseWriter, r *http.Request) {
-	nodes := c.scheduler.Nodes()
+	nodes := c.cluster.Nodes()
 	driverStatus := [][2]string{{"\bNodes", fmt.Sprintf("%d", len(nodes))}}
 
 	for _, node := range nodes {
@@ -46,7 +46,7 @@ func getInfo(c *context, w http.ResponseWriter, r *http.Request) {
 		NEventsListener int
 		Debug           bool
 	}{
-		len(c.scheduler.Containers()),
+		len(c.cluster.Containers()),
 		driverStatus,
 		c.eventsHandler.Size(),
 		c.debug,
@@ -94,7 +94,7 @@ func getImagesJSON(c *context, w http.ResponseWriter, r *http.Request) {
 	accepteds, _ := filters["node"]
 	images := []*dockerclient.Image{}
 
-	for _, node := range c.scheduler.Nodes() {
+	for _, node := range c.cluster.Nodes() {
 		if len(accepteds) != 0 {
 			found := false
 			for _, accepted := range accepteds {
@@ -128,7 +128,7 @@ func getContainersJSON(c *context, w http.ResponseWriter, r *http.Request) {
 	all := r.Form.Get("all") == "1"
 
 	out := []*dockerclient.Container{}
-	for _, container := range c.scheduler.Containers() {
+	for _, container := range c.cluster.Containers() {
 		tmp := (*container).Container
 		// Skip stopped containers unless -a was specified.
 		if !strings.Contains(tmp.Status, "Up") && !all {
@@ -166,7 +166,7 @@ func getContainersJSON(c *context, w http.ResponseWriter, r *http.Request) {
 // GET /containers/{name:.*}/json
 func getContainerJSON(c *context, w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
-	container := c.scheduler.Container(name)
+	container := c.cluster.Container(name)
 	if container == nil {
 		httpError(w, fmt.Sprintf("No such container %s", name), http.StatusNotFound)
 		return
@@ -218,12 +218,12 @@ func postContainersCreate(c *context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if container := c.scheduler.Container(name); container != nil {
+	if container := c.cluster.Container(name); container != nil {
 		httpError(w, fmt.Sprintf("Conflict, The name %s is already assigned to %s. You have to delete (or rename) that container to be able to assign %s to a container again.", name, container.Id, name), http.StatusConflict)
 		return
 	}
 
-	container, err := c.scheduler.CreateContainer(&config, name)
+	container, err := c.cluster.CreateContainer(&config, name)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -244,12 +244,12 @@ func deleteContainer(c *context, w http.ResponseWriter, r *http.Request) {
 
 	name := mux.Vars(r)["name"]
 	force := r.Form.Get("force") == "1"
-	container := c.scheduler.Container(name)
+	container := c.cluster.Container(name)
 	if container == nil {
 		httpError(w, fmt.Sprintf("Container %s not found", name), http.StatusNotFound)
 		return
 	}
-	if err := c.scheduler.RemoveContainer(container, force); err != nil {
+	if err := c.cluster.RemoveContainer(container, force); err != nil {
 		httpError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -312,7 +312,7 @@ func proxyContainer(c *context, w http.ResponseWriter, r *http.Request) {
 func proxyImage(c *context, w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 
-	for _, node := range c.scheduler.Nodes() {
+	for _, node := range c.cluster.Nodes() {
 		if node.Image(name) != nil {
 			proxy(c.tlsConfig, node.Addr, w, r)
 			return
@@ -323,7 +323,7 @@ func proxyImage(c *context, w http.ResponseWriter, r *http.Request) {
 
 // Proxy a request to a random node
 func proxyRandom(c *context, w http.ResponseWriter, r *http.Request) {
-	candidates := c.scheduler.Nodes()
+	candidates := c.cluster.Nodes()
 
 	healthFilter := &filter.HealthFilter{}
 	accepted, err := healthFilter.Filter(nil, candidates)
