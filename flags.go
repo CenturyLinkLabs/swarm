@@ -96,7 +96,7 @@ var (
 	}
 	flCluster = cli.StringFlag{
 		Name:  "cluster, c",
-		Usage: "cluster to use [swarm, mesos]",
+		Usage: "cluster to use [swarm, mesos, kubernetes]",
 		Value: "swarm",
 	}
 )

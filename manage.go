@@ -11,6 +11,7 @@ import (
 	"github.com/codegangsta/cli"
 	"github.com/docker/swarm/api"
 	"github.com/docker/swarm/cluster"
+	"github.com/docker/swarm/cluster/kubernetes"
 	"github.com/docker/swarm/cluster/mesos"
 	"github.com/docker/swarm/cluster/swarm"
 	"github.com/docker/swarm/discovery"
@@ -133,6 +134,8 @@ func manage(c *cli.Context) {
 		cluster = swarm.NewCluster(sched, store, options)
 	case "mesos":
 		cluster = mesos.NewCluster(options)
+	case "kubernetes":
+		cluster = kubernetes.NewCluster(options)
 	default:
 		log.Fatalf("cluster %q not supported", c.String("cluster"))
 	}
