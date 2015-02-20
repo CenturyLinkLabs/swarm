@@ -1,9 +1,12 @@
 package kubernetes
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,6 +14,7 @@ import (
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/client"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
+	kutil "github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/watch"
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/swarm/cluster"
@@ -48,21 +52,70 @@ func (c *KubernetesCluster) CreateContainer(config *dockerclient.ContainerConfig
 	if len(c.masters) == 0 {
 		return nil, fmt.Errorf("no Kubernetes master was found")
 	}
-
 	m := c.masters[0]
 
 	// TODO look at not using the kubectl namespace for this stuff and sticking
 	// to client. Or not, this is a spike and building those objects appears
 	// pretty rough.
 	generator := kubectl.BasicReplicationController{}
-	rcToCreate, err := generator.Generate(map[string]string{"image": config.Image, "replicas": "1", "name": "swarmtest"})
+	objectToCreate, err := generator.Generate(map[string]string{"image": config.Image, "replicas": "1", "name": name})
 	if err != nil {
 		return nil, err
 	}
 
-	rc, err := m.ReplicationControllers("default").Create(rcToCreate.(*api.ReplicationController))
+	rcToCreate := objectToCreate.(*api.ReplicationController)
+	rc, err := m.ReplicationControllers("default").Create(rcToCreate)
 	if err != nil {
 		return nil, err
+	}
+
+	for containerPortAndProtocol, portBindings := range config.HostConfig.PortBindings {
+		s := strings.Split(containerPortAndProtocol, "/")
+		if len(s) != 2 {
+			log.Fatalf("Port mappings indecipherable")
+		}
+		containerPort := s[0]
+		containerPortInt, err := strconv.Atoi(containerPort)
+		if err != nil {
+			return nil, err
+		}
+		for _, portBinding := range portBindings {
+			log.WithFields(log.Fields{
+				"external": portBinding.HostPort,
+				"internal": containerPort,
+			}).Info("Told to map port")
+
+			boundPort, err := strconv.Atoi(portBinding.HostPort)
+			if err != nil {
+				return nil, err
+			}
+
+			kerviceName := fmt.Sprintf("%v-kervice", name)
+			serviceToCreate := &api.Service{
+				ObjectMeta: api.ObjectMeta{Name: kerviceName},
+				Spec: api.ServiceSpec{
+					Port:          boundPort,
+					ContainerPort: kutil.NewIntOrStringFromInt(containerPortInt),
+					Selector:      rc.Labels,
+				},
+			}
+
+			js, err := json.Marshal(serviceToCreate)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Printf("Creating service: %v\n", string(js))
+			service, err := m.Services("default").Create(serviceToCreate)
+			js, err = json.Marshal(service)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Printf("Created service: %v\n", string(js))
+
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 	}
 
 	w, err := m.Events("default").Watch(labels.Everything(), labels.Everything(), rc.ObjectMeta.ResourceVersion)
@@ -119,7 +172,7 @@ func (c *KubernetesCluster) CreateContainer(config *dockerclient.ContainerConfig
 	}
 
 	for name, cs := range pod.Status.Info {
-		if name == "swarmtest" && cs.Image == "redis" {
+		if name == name && cs.Image == config.Image {
 			matches := regexp.MustCompile("^docker://(.+)$").FindStringSubmatch(cs.ContainerID)
 			if len(matches) != 2 {
 				log.WithFields(log.Fields{
