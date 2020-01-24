@@ -15,6 +15,10 @@ development settles, an API will develop to enable pluggable backends. The goal 
 to provide a smooth out-of-box experience for simple use cases, and allow swapping
 in more powerful backends, like `Mesos`, for large scale production deployments.
 
+## NOTE
+
+This repo is no longer being maintained. Users are welcome to fork it, but we make no warranty of its functionality.
+
 ## Installation
 
 ###1 - Docker image.
